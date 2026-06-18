@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.Point
 import android.graphics.Rect
 import android.net.ConnectivityManager
+import android.net.wifi.WifiManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
@@ -18,6 +19,7 @@ import android.view.Surface
 import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import java.net.NetworkInterface
 import java.util.*
 
 val Activity.platform: String
@@ -189,6 +191,52 @@ fun Activity.openWifi() {
         action = Settings.ACTION_WIFI_SETTINGS
     }
     startActivityCompat(this, openWifiIntent)
+}
+
+fun Activity.wifiEnabled(): Boolean {
+    val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+    return wifi.isWifiEnabled
+}
+
+@Suppress("DEPRECATION")
+fun Activity.setWifiRadio(enable: Boolean): Boolean {
+    val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return false
+    if (wifi.setWifiEnabled(enable)) return true
+    // WifiManager.setWifiEnabled() is blocked on many devices (restricted by OEM or Android 10+).
+    // Fall back to root shell command.
+    val cmd = if (enable) "svc wifi enable" else "svc wifi disable"
+    return try {
+        Runtime.getRuntime().exec(arrayOf("su", "-c", cmd)).waitFor() == 0
+    } catch (e: Exception) {
+        false
+    }
+}
+
+@Suppress("DEPRECATION")
+fun Activity.wifiNetworkDetails(): String {
+    if (!wifiEnabled()) return ""
+    val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return ""
+    val info = wifi.connectionInfo
+
+    val ipInt = info?.ipAddress ?: 0
+    val ip = if (ipInt == 0) "" else "%d.%d.%d.%d".format(
+        ipInt and 0xFF, (ipInt shr 8) and 0xFF,
+        (ipInt shr 16) and 0xFF, (ipInt shr 24) and 0xFF
+    )
+
+    val mac = try {
+        NetworkInterface.getByName("wlan0")?.hardwareAddress
+            ?.joinToString(":") { "%02X".format(it) } ?: ""
+    } catch (e: Exception) { "" }
+
+    val ssid = info?.ssid?.removeSurrounding("\"")
+        ?.takeIf { it.isNotEmpty() && it != "<unknown ssid>" && !it.startsWith("0x") } ?: ""
+
+    return listOfNotNull(
+        if (ssid.isNotEmpty()) "SSID: $ssid" else null,
+        if (ip.isNotEmpty()) "IP: $ip" else null,
+        if (mac.isNotEmpty()) "MAC: $mac" else null
+    ).joinToString("\n")
 }
 
 fun Activity.pruneCacheDir() {

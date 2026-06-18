@@ -445,6 +445,10 @@ class MainActivity : NativeActivity(), LuaInterface,
         return networkInfo()
     }
 
+    override fun getWifiNetworkDetails(): String {
+        return wifiNetworkDetails()
+    }
+
     override fun getPlatformName(): String {
         return platform
     }
@@ -647,8 +651,16 @@ class MainActivity : NativeActivity(), LuaInterface,
         }
     }
 
+    override fun isWifiEnabled(): Boolean {
+        return wifiEnabled()
+    }
+
     override fun openWifiSettings() {
         openWifi()
+    }
+
+    override fun setWifiEnabled(enable: Boolean): Boolean {
+        return setWifiRadio(enable)
     }
 
     override fun performHapticFeedback(constant: Int, force: Int) {
